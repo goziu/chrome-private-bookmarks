@@ -15,6 +15,9 @@ const bookmarkList = document.getElementById('bookmarkList');
 const pagination = document.getElementById('pagination');
 const downloadBtn = document.getElementById('downloadBtn');
 const clearBtn = document.getElementById('clearBtn');
+const importBtn = document.getElementById('importBtn');
+const importFileInput = document.getElementById('importFileInput');
+const importMessage = document.getElementById('importMessage');
 
 // ブックマークを読み込む
 function loadBookmarks() {
@@ -264,6 +267,153 @@ function escapeCsv(text) {
   }
   return text;
 }
+
+// CSVパース（シンプルな実装）
+function parseCSV(csvText) {
+  const lines = csvText.split('\n');
+  if (lines.length < 2) {
+    throw new Error('CSVファイルの形式が正しくありません');
+  }
+
+  // ヘッダー行をスキップ
+  const dataLines = lines.slice(1).filter(line => line.trim() !== '');
+  const bookmarks = [];
+
+  for (const line of dataLines) {
+    // シンプルなCSVパース（カンマ区切り、ダブルクォート対応）
+    const fields = [];
+    let currentField = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      const nextChar = line[i + 1];
+
+      if (char === '"') {
+        if (inQuotes && nextChar === '"') {
+          // エスケープされたダブルクォート
+          currentField += '"';
+          i++; // 次の文字をスキップ
+        } else {
+          // クォートの開始/終了
+          inQuotes = !inQuotes;
+        }
+      } else if (char === ',' && !inQuotes) {
+        // フィールドの終了
+        fields.push(currentField);
+        currentField = '';
+      } else {
+        currentField += char;
+      }
+    }
+    fields.push(currentField); // 最後のフィールド
+
+    if (fields.length >= 3) {
+      const title = fields[0].trim();
+      const url = fields[1].trim();
+      const dateStr = fields[2].trim();
+
+      if (url) {
+        // 日付のパース（複数の形式に対応）
+        let date;
+        try {
+          date = new Date(dateStr);
+          if (isNaN(date.getTime())) {
+            // 日付が無効な場合、現在の日時を使用
+            date = new Date();
+          }
+        } catch (e) {
+          date = new Date();
+        }
+
+        bookmarks.push({
+          title: title || url,
+          url: url,
+          date: date.toISOString()
+        });
+      }
+    }
+  }
+
+  return bookmarks;
+}
+
+// CSVインポート機能
+importBtn.addEventListener('click', () => {
+  importFileInput.click();
+});
+
+importFileInput.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  if (!file.name.endsWith('.csv')) {
+    importMessage.textContent = 'エラー: CSVファイルを選択してください';
+    importMessage.className = 'import-message error';
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = (event) => {
+    try {
+      const csvText = event.target.result;
+      const importedBookmarks = parseCSV(csvText);
+
+      if (importedBookmarks.length === 0) {
+        importMessage.textContent = 'エラー: 有効なブックマークが見つかりませんでした';
+        importMessage.className = 'import-message error';
+        return;
+      }
+
+      // 既存のブックマークとマージ（重複チェック）
+      const existingUrls = new Set(allBookmarks.map(b => b.url));
+      const newBookmarks = importedBookmarks.filter(b => !existingUrls.has(b.url));
+      const duplicateCount = importedBookmarks.length - newBookmarks.length;
+
+      // 既存のブックマークと新しいブックマークをマージ
+      const mergedBookmarks = [...allBookmarks, ...newBookmarks];
+
+      // ストレージに保存
+      chrome.storage.sync.set({ bookmarks: mergedBookmarks }, () => {
+        allBookmarks = mergedBookmarks;
+        filteredBookmarks = [...allBookmarks];
+        currentPage = 1;
+        searchInput.value = '';
+        renderBookmarks();
+        renderPagination();
+        updateStorageUsage();
+
+        // メッセージを表示
+        let message = `${newBookmarks.length}件のブックマークをインポートしました`;
+        if (duplicateCount > 0) {
+          message += `（${duplicateCount}件は重複のためスキップされました）`;
+        }
+        importMessage.textContent = message;
+        importMessage.className = 'import-message success';
+
+        // 3秒後にメッセージをクリア
+        setTimeout(() => {
+          importMessage.textContent = '';
+          importMessage.className = 'import-message';
+        }, 3000);
+      });
+    } catch (error) {
+      importMessage.textContent = `エラー: ${error.message}`;
+      importMessage.className = 'import-message error';
+    }
+
+    // ファイル入力をリセット
+    importFileInput.value = '';
+  };
+
+  reader.onerror = () => {
+    importMessage.textContent = 'エラー: ファイルの読み込みに失敗しました';
+    importMessage.className = 'import-message error';
+  };
+
+  // UTF-8 BOMを考慮して読み込む
+  reader.readAsText(file, 'UTF-8');
+});
 
 // パスワード認証
 function checkPassword() {
