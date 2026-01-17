@@ -7,7 +7,18 @@
   <link rel="stylesheet" href="list.css">
 </head>
 <body>
-  <div class="container">
+  <!-- パスワードロック画面 -->
+  <div id="passwordScreen" class="password-screen">
+    <div class="password-container">
+      <h2>パスワードを入力してください</h2>
+      <input type="password" id="passwordInput" placeholder="パスワード" class="password-input" autofocus>
+      <div id="passwordError" class="password-error"></div>
+      <button id="passwordSubmit" class="btn btn-primary">ロック解除</button>
+    </div>
+  </div>
+
+  <!-- ブックマークリスト画面 -->
+  <div id="mainContent" class="container" style="display: none;">
     <h1>ブックマークリスト</h1>
     
     <div class="controls">
