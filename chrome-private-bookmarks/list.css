@@ -167,11 +167,43 @@ h1 {
   text-decoration: underline;
 }
 
+.bookmark-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .bookmark-date {
   color: #666;
   font-size: 12px;
-  margin-left: 15px;
   white-space: nowrap;
+}
+
+.btn-delete {
+  background-color: transparent;
+  border: none;
+  color: #ea4335;
+  font-size: 20px;
+  font-weight: bold;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.2s;
+  line-height: 1;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-delete:hover {
+  background-color: #fee;
+  color: #d33b2c;
+}
+
+.btn-delete:active {
+  background-color: #fcc;
 }
 
 .no-results {

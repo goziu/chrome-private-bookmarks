@@ -57,18 +57,32 @@ function renderBookmarks() {
     return;
   }
 
-  bookmarkList.innerHTML = pageBookmarks.map(bookmark => {
+  bookmarkList.innerHTML = pageBookmarks.map((bookmark, index) => {
     const date = new Date(bookmark.date);
     const dateStr = date.toLocaleString('ja-JP');
+    // URLをbase64エンコードして安全に使用
+    const encodedUrl = btoa(unescape(encodeURIComponent(bookmark.url)));
     return `
       <div class="bookmark-item">
         <a href="${bookmark.url}" target="_blank" class="bookmark-link">
           ${escapeHtml(bookmark.title || bookmark.url)}
         </a>
-        <span class="bookmark-date">${dateStr}</span>
+        <div class="bookmark-actions">
+          <span class="bookmark-date">${dateStr}</span>
+          <button class="btn-delete" data-url="${encodedUrl}" title="削除">×</button>
+        </div>
       </div>
     `;
   }).join('');
+  
+  // 削除ボタンにイベントリスナーを追加
+  bookmarkList.querySelectorAll('.btn-delete').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const encodedUrl = btn.getAttribute('data-url');
+      const url = decodeURIComponent(escape(atob(encodedUrl)));
+      deleteBookmark(url);
+    });
+  });
 }
 
 // ページネーションを表示
@@ -164,6 +178,33 @@ downloadBtn.addEventListener('click', () => {
   link.click();
   URL.revokeObjectURL(url);
 });
+
+// 個別削除機能
+function deleteBookmark(url) {
+  const bookmark = allBookmarks.find(b => b.url === url);
+  if (!bookmark) return;
+  
+  const title = bookmark.title || url;
+  const confirmMessage = `「${title.length > 50 ? title.substring(0, 50) + '...' : title}」を削除しますか？`;
+  
+  if (confirm(confirmMessage)) {
+    // すべてのブックマークから該当するURLを削除
+    allBookmarks = allBookmarks.filter(b => b.url !== url);
+    filteredBookmarks = filteredBookmarks.filter(b => b.url !== url);
+    
+    // ストレージに保存
+    chrome.storage.local.set({ bookmarks: allBookmarks }, () => {
+      // 現在のページにアイテムがなくなった場合、前のページに移動
+      const totalPages = Math.ceil(filteredBookmarks.length / ITEMS_PER_PAGE);
+      if (currentPage > totalPages && totalPages > 0) {
+        currentPage = totalPages;
+      }
+      
+      renderBookmarks();
+      renderPagination();
+    });
+  }
+}
 
 // クリア機能
 clearBtn.addEventListener('click', () => {
