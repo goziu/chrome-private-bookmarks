@@ -9,6 +9,58 @@ body {
   background-color: #f5f5f5;
 }
 
+.password-screen {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  margin: -20px;
+  background-color: #f5f5f5;
+}
+
+.password-container {
+  background-color: white;
+  padding: 40px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  text-align: center;
+  min-width: 300px;
+}
+
+.password-container h2 {
+  margin: 0 0 20px 0;
+  color: #333;
+  font-size: 20px;
+}
+
+.password-input {
+  width: 100%;
+  padding: 12px;
+  font-size: 16px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  margin-bottom: 15px;
+  box-sizing: border-box;
+}
+
+.password-input:focus {
+  outline: none;
+  border-color: #4285f4;
+}
+
+.password-error {
+  color: #ea4335;
+  font-size: 14px;
+  margin-bottom: 15px;
+  min-height: 20px;
+}
+
+.password-container .btn {
+  width: 100%;
+  padding: 12px;
+  font-size: 16px;
+}
+
 .container {
   max-width: 1200px;
   margin: 0 auto;

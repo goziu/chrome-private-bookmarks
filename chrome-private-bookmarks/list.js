@@ -1,9 +1,15 @@
 const ITEMS_PER_PAGE = 100;
+const PASSWORD = 'mb4649!'; // 固定パスワード
 let allBookmarks = [];
 let filteredBookmarks = [];
 let currentPage = 1;
 
 // DOM要素の取得
+const passwordScreen = document.getElementById('passwordScreen');
+const mainContent = document.getElementById('mainContent');
+const passwordInput = document.getElementById('passwordInput');
+const passwordError = document.getElementById('passwordError');
+const passwordSubmit = document.getElementById('passwordSubmit');
 const searchInput = document.getElementById('searchInput');
 const bookmarkList = document.getElementById('bookmarkList');
 const pagination = document.getElementById('pagination');
@@ -194,6 +200,52 @@ function escapeCsv(text) {
   return text;
 }
 
+// パスワード認証
+function checkPassword() {
+  const inputPassword = passwordInput.value;
+  
+  if (inputPassword === PASSWORD) {
+    // 認証成功
+    sessionStorage.setItem('bookmarkListAuthenticated', 'true');
+    showMainContent();
+  } else {
+    // 認証失敗
+    passwordError.textContent = 'パスワードが正しくありません';
+    passwordInput.value = '';
+    passwordInput.focus();
+  }
+}
+
+// メインコンテンツを表示
+function showMainContent() {
+  passwordScreen.style.display = 'none';
+  mainContent.style.display = 'block';
+  loadBookmarks();
+}
+
+// パスワード入力でEnterキーを押したとき
+passwordInput.addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') {
+    checkPassword();
+  }
+});
+
+// パスワード送信ボタン
+passwordSubmit.addEventListener('click', checkPassword);
+
+// 認証状態をチェック
+function checkAuthentication() {
+  const isAuthenticated = sessionStorage.getItem('bookmarkListAuthenticated') === 'true';
+  
+  if (isAuthenticated) {
+    showMainContent();
+  } else {
+    passwordScreen.style.display = 'block';
+    mainContent.style.display = 'none';
+    passwordInput.focus();
+  }
+}
+
 // 初期化
-loadBookmarks();
+checkAuthentication();
 
