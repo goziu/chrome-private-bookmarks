@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ブックマークリスト</title>
+  <link rel="stylesheet" href="list.css">
+</head>
+<body>
+  <div class="container">
+    <h1>ブックマークリスト</h1>
+    
+    <div class="controls">
+      <div class="search-container">
+        <input type="text" id="searchInput" placeholder="検索..." class="search-input">
+      </div>
+      <div class="button-group">
+        <button id="downloadBtn" class="btn btn-primary">CSVダウンロード</button>
+        <button id="clearBtn" class="btn btn-danger">クリア</button>
+      </div>
+    </div>
+
+    <div id="bookmarkList" class="bookmark-list">
+      <!-- ブックマークリストがここに表示されます -->
+    </div>
+
+    <div id="pagination" class="pagination">
+      <!-- ページネーションがここに表示されます -->
+    </div>
+  </div>
+  <script src="list.js"></script>
+</body>
+</html>
+

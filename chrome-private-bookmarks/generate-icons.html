@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>アイコン生成</title>
+</head>
+<body>
+  <h1>アイコン生成ツール</h1>
+  <p>このページを開いて、各サイズのアイコンを右クリックして「名前を付けて画像を保存」してください。</p>
+  
+  <div style="margin: 20px 0;">
+    <h2>16x16</h2>
+    <canvas id="icon16" width="16" height="16"></canvas>
+  </div>
+  
+  <div style="margin: 20px 0;">
+    <h2>48x48</h2>
+    <canvas id="icon48" width="48" height="48"></canvas>
+  </div>
+  
+  <div style="margin: 20px 0;">
+    <h2>128x128</h2>
+    <canvas id="icon128" width="128" height="128"></canvas>
+  </div>
+
+  <script>
+    function drawIcon(canvas, size) {
+      const ctx = canvas.getContext('2d');
+      
+      // 背景
+      ctx.fillStyle = '#4285f4';
+      ctx.fillRect(0, 0, size, size);
+      
+      // ブックマークアイコン（星型）
+      ctx.fillStyle = '#ffffff';
+      ctx.strokeStyle = '#ffffff';
+      
+      const centerX = size / 2;
+      const centerY = size / 2;
+      const radius = size * 0.35;
+      const spikes = 5;
+      const step = (Math.PI * 2) / spikes;
+      
+      ctx.beginPath();
+      for (let i = 0; i < spikes * 2; i++) {
+        const r = i % 2 === 0 ? radius : radius * 0.4;
+        const angle = i * step / 2 - Math.PI / 2;
+        const x = centerX + Math.cos(angle) * r;
+        const y = centerY + Math.sin(angle) * r;
+        if (i === 0) {
+          ctx.moveTo(x, y);
+        } else {
+          ctx.lineTo(x, y);
+        }
+      }
+      ctx.closePath();
+      ctx.fill();
+    }
+    
+    function downloadIcon(canvas, filename) {
+      canvas.toBlob((blob) => {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        link.click();
+        URL.revokeObjectURL(url);
+      });
+    }
+    
+    const icon16 = document.getElementById('icon16');
+    const icon48 = document.getElementById('icon48');
+    const icon128 = document.getElementById('icon128');
+    
+    drawIcon(icon16, 16);
+    drawIcon(icon48, 48);
+    drawIcon(icon128, 128);
+    
+    // ダウンロードボタンを追加
+    [icon16, icon48, icon128].forEach((canvas, index) => {
+      const size = [16, 48, 128][index];
+      const btn = document.createElement('button');
+      btn.textContent = `icon${size}.pngをダウンロード`;
+      btn.style.marginLeft = '10px';
+      btn.onclick = () => downloadIcon(canvas, `icon${size}.png`);
+      canvas.parentElement.appendChild(btn);
+    });
+  </script>
+</body>
+</html>
+
