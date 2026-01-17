@@ -18,13 +18,35 @@ const clearBtn = document.getElementById('clearBtn');
 
 // ブックマークを読み込む
 function loadBookmarks() {
-  chrome.storage.local.get(['bookmarks'], (result) => {
+  chrome.storage.sync.get(['bookmarks'], (result) => {
     allBookmarks = result.bookmarks || [];
     filteredBookmarks = [...allBookmarks];
     currentPage = 1;
     renderBookmarks();
     renderPagination();
+    updateStorageUsage();
   });
+}
+
+// ストレージ使用量を計算して表示
+function updateStorageUsage() {
+  const dataString = JSON.stringify(allBookmarks);
+  const sizeInBytes = new Blob([dataString]).size;
+  const sizeInKB = (sizeInBytes / 1024).toFixed(2);
+  const maxSizeKB = 100;
+  const usagePercent = ((sizeInKB / maxSizeKB) * 100).toFixed(1);
+  
+  const storageInfo = document.getElementById('storageInfo');
+  if (storageInfo) {
+    storageInfo.textContent = `使用容量: ${sizeInKB}KB / ${maxSizeKB}KB (${usagePercent}%)`;
+    
+    // 容量が80%を超えたら警告色に
+    if (sizeInKB > maxSizeKB * 0.8) {
+      storageInfo.className = 'storage-info warning';
+    } else {
+      storageInfo.className = 'storage-info';
+    }
+  }
 }
 
 // 検索機能
@@ -193,7 +215,7 @@ function deleteBookmark(url) {
     filteredBookmarks = filteredBookmarks.filter(b => b.url !== url);
     
     // ストレージに保存
-    chrome.storage.local.set({ bookmarks: allBookmarks }, () => {
+    chrome.storage.sync.set({ bookmarks: allBookmarks }, () => {
       // 現在のページにアイテムがなくなった場合、前のページに移動
       const totalPages = Math.ceil(filteredBookmarks.length / ITEMS_PER_PAGE);
       if (currentPage > totalPages && totalPages > 0) {
@@ -202,6 +224,7 @@ function deleteBookmark(url) {
       
       renderBookmarks();
       renderPagination();
+      updateStorageUsage();
     });
   }
 }
@@ -214,13 +237,14 @@ clearBtn.addEventListener('click', () => {
   }
 
   if (confirm('すべてのブックマークを削除しますか？この操作は取り消せません。')) {
-    chrome.storage.local.set({ bookmarks: [] }, () => {
+    chrome.storage.sync.set({ bookmarks: [] }, () => {
       allBookmarks = [];
       filteredBookmarks = [];
       currentPage = 1;
       searchInput.value = '';
       renderBookmarks();
       renderPagination();
+      updateStorageUsage();
       alert('すべてのブックマークを削除しました');
     });
   }

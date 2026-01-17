@@ -64,7 +64,7 @@ function addBookmark() {
       };
 
       // ストレージから既存のブックマークを取得
-      chrome.storage.local.get(['bookmarks'], (result) => {
+      chrome.storage.sync.get(['bookmarks'], (result) => {
         const bookmarks = result.bookmarks || [];
         
         // 重複チェック（同じURLが既に存在するか）
@@ -75,7 +75,7 @@ function addBookmark() {
           bookmarks.unshift(bookmark);
           
           // ストレージに保存
-          chrome.storage.local.set({ bookmarks: bookmarks }, () => {
+          chrome.storage.sync.set({ bookmarks: bookmarks }, () => {
             console.log('ブックマークを保存しました');
           });
         }
