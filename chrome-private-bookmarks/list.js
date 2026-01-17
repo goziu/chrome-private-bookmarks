@@ -23,11 +23,22 @@ const importMessage = document.getElementById('importMessage');
 function loadBookmarks() {
   chrome.storage.sync.get(['bookmarks'], (result) => {
     allBookmarks = result.bookmarks || [];
+    // 保護されたブックマークを先に、その後登録順にソート
+    allBookmarks.sort((a, b) => {
+      const aProtected = a.protected || false;
+      const bProtected = b.protected || false;
+      if (aProtected && !bProtected) return -1;
+      if (!aProtected && bProtected) return 1;
+      // 両方保護されている、または両方保護されていない場合は登録順（日付の降順）
+      return new Date(b.date) - new Date(a.date);
+    });
     filteredBookmarks = [...allBookmarks];
     currentPage = 1;
     renderBookmarks();
     renderPagination();
     updateStorageUsage();
+    // 容量チェックと自動削除
+    checkAndCleanupStorage();
   });
 }
 
@@ -52,6 +63,59 @@ function updateStorageUsage() {
   }
 }
 
+// 容量が100KBを超えた場合、保護されていない古いブックマークから削除
+function checkAndCleanupStorage() {
+  const dataString = JSON.stringify(allBookmarks);
+  const sizeInBytes = new Blob([dataString]).size;
+  const sizeInKB = sizeInBytes / 1024;
+  const maxSizeKB = 100;
+
+  if (sizeInKB > maxSizeKB) {
+    // 保護されていないブックマークを古い順にソート
+    const unprotectedBookmarks = allBookmarks
+      .filter(b => !(b.protected || false))
+      .sort((a, b) => new Date(a.date) - new Date(b.date)); // 古い順
+
+    let removedCount = 0;
+    let currentBookmarks = [...allBookmarks];
+
+    // 保護されていない古いブックマークから削除
+    for (const bookmark of unprotectedBookmarks) {
+      // 現在のサイズを計算
+      const currentSize = new Blob([JSON.stringify(currentBookmarks)]).size / 1024;
+      if (currentSize <= maxSizeKB) break;
+
+      // このブックマークを削除
+      const index = currentBookmarks.findIndex(b => b.url === bookmark.url);
+      if (index !== -1) {
+        currentBookmarks.splice(index, 1);
+        removedCount++;
+      }
+    }
+
+    if (removedCount > 0) {
+      // ストレージに保存
+      chrome.storage.sync.set({ bookmarks: currentBookmarks }, () => {
+        allBookmarks = currentBookmarks;
+        // 保護されたブックマークを先に表示するように再ソート
+        allBookmarks.sort((a, b) => {
+          const aProtected = a.protected || false;
+          const bProtected = b.protected || false;
+          if (aProtected && !bProtected) return -1;
+          if (!aProtected && bProtected) return 1;
+          return new Date(b.date) - new Date(a.date);
+        });
+        filteredBookmarks = [...allBookmarks];
+        currentPage = 1;
+        renderBookmarks();
+        renderPagination();
+        updateStorageUsage();
+        alert(`${removedCount}件の保護されていない古いブックマークを自動削除しました（容量制限のため）`);
+      });
+    }
+  }
+}
+
 // 検索機能
 searchInput.addEventListener('input', (e) => {
   const query = e.target.value.toLowerCase().trim();
@@ -63,6 +127,14 @@ searchInput.addEventListener('input', (e) => {
       const title = (bookmark.title || '').toLowerCase();
       const url = (bookmark.url || '').toLowerCase();
       return title.includes(query) || url.includes(query);
+    });
+    // 検索結果も保護されたものを先に表示
+    filteredBookmarks.sort((a, b) => {
+      const aProtected = a.protected || false;
+      const bProtected = b.protected || false;
+      if (aProtected && !bProtected) return -1;
+      if (!aProtected && bProtected) return 1;
+      return new Date(b.date) - new Date(a.date);
     });
   }
   
@@ -87,8 +159,11 @@ function renderBookmarks() {
     const dateStr = date.toLocaleString('ja-JP');
     // URLをbase64エンコードして安全に使用
     const encodedUrl = btoa(unescape(encodeURIComponent(bookmark.url)));
+    const isProtected = bookmark.protected || false;
+    const starIcon = isProtected ? '★' : '☆';
     return `
       <div class="bookmark-item">
+        <button class="btn-protect ${isProtected ? 'protected' : ''}" data-url="${encodedUrl}" title="${isProtected ? '保護解除' : '保護'}">${starIcon}</button>
         <a href="${bookmark.url}" target="_blank" class="bookmark-link">
           ${escapeHtml(bookmark.title || bookmark.url)}
         </a>
@@ -106,6 +181,17 @@ function renderBookmarks() {
       const encodedUrl = btn.getAttribute('data-url');
       const url = decodeURIComponent(escape(atob(encodedUrl)));
       deleteBookmark(url);
+    });
+  });
+
+  // 保護ボタンにイベントリスナーを追加
+  bookmarkList.querySelectorAll('.btn-protect').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const encodedUrl = btn.getAttribute('data-url');
+      const url = decodeURIComponent(escape(atob(encodedUrl)));
+      toggleProtect(url);
     });
   });
 }
@@ -184,14 +270,15 @@ downloadBtn.addEventListener('click', () => {
   }
 
   // CSVヘッダー
-  let csv = 'タイトル,URL,日時\n';
+  let csv = 'タイトル,URL,日時,保護\n';
   
   // データ行
   filteredBookmarks.forEach(bookmark => {
     const title = escapeCsv(bookmark.title || '');
     const url = escapeCsv(bookmark.url || '');
     const date = new Date(bookmark.date).toLocaleString('ja-JP');
-    csv += `${title},${url},${date}\n`;
+    const protected = (bookmark.protected || false) ? '1' : '0';
+    csv += `${title},${url},${date},${protected}\n`;
   });
 
   // Blobを作成してダウンロード
@@ -203,6 +290,53 @@ downloadBtn.addEventListener('click', () => {
   link.click();
   URL.revokeObjectURL(url);
 });
+
+// 保護機能のトグル
+function toggleProtect(url) {
+  const bookmark = allBookmarks.find(b => b.url === url);
+  if (!bookmark) return;
+
+  // 保護状態を切り替え
+  bookmark.protected = !(bookmark.protected || false);
+
+  // 保護されたブックマークを先に表示するように再ソート
+  allBookmarks.sort((a, b) => {
+    const aProtected = a.protected || false;
+    const bProtected = b.protected || false;
+    if (aProtected && !bProtected) return -1;
+    if (!aProtected && bProtected) return 1;
+    return new Date(b.date) - new Date(a.date);
+  });
+
+  // 検索結果も再ソート
+  if (searchInput.value.trim() === '') {
+    filteredBookmarks = [...allBookmarks];
+  } else {
+    filteredBookmarks = allBookmarks.filter(bookmark => {
+      const title = (bookmark.title || '').toLowerCase();
+      const url = (bookmark.url || '').toLowerCase();
+      const query = searchInput.value.toLowerCase().trim();
+      return title.includes(query) || url.includes(query);
+    });
+    // 検索結果も保護されたものを先に表示
+    filteredBookmarks.sort((a, b) => {
+      const aProtected = a.protected || false;
+      const bProtected = b.protected || false;
+      if (aProtected && !bProtected) return -1;
+      if (!aProtected && bProtected) return 1;
+      return new Date(b.date) - new Date(a.date);
+    });
+  }
+
+  // ストレージに保存
+  chrome.storage.sync.set({ bookmarks: allBookmarks }, () => {
+    currentPage = 1;
+    renderBookmarks();
+    renderPagination();
+    updateStorageUsage();
+    checkAndCleanupStorage();
+  });
+}
 
 // 個別削除機能
 function deleteBookmark(url) {
@@ -228,6 +362,7 @@ function deleteBookmark(url) {
       renderBookmarks();
       renderPagination();
       updateStorageUsage();
+      checkAndCleanupStorage();
     });
   }
 }
@@ -312,6 +447,7 @@ function parseCSV(csvText) {
       const title = fields[0].trim();
       const url = fields[1].trim();
       const dateStr = fields[2].trim();
+      const protectedStr = fields.length >= 4 ? fields[3].trim() : '0';
 
       if (url) {
         // 日付のパース（複数の形式に対応）
@@ -326,10 +462,14 @@ function parseCSV(csvText) {
           date = new Date();
         }
 
+        // 保護状態のパース（'1'または'true'で保護、それ以外は非保護）
+        const isProtected = protectedStr === '1' || protectedStr.toLowerCase() === 'true';
+
         bookmarks.push({
           title: title || url,
           url: url,
-          date: date.toISOString()
+          date: date.toISOString(),
+          protected: isProtected
         });
       }
     }
@@ -373,6 +513,15 @@ importFileInput.addEventListener('change', (e) => {
       // 既存のブックマークと新しいブックマークをマージ
       const mergedBookmarks = [...allBookmarks, ...newBookmarks];
 
+      // 保護されたブックマークを先に表示するように再ソート
+      mergedBookmarks.sort((a, b) => {
+        const aProtected = a.protected || false;
+        const bProtected = b.protected || false;
+        if (aProtected && !bProtected) return -1;
+        if (!aProtected && bProtected) return 1;
+        return new Date(b.date) - new Date(a.date);
+      });
+
       // ストレージに保存
       chrome.storage.sync.set({ bookmarks: mergedBookmarks }, () => {
         allBookmarks = mergedBookmarks;
@@ -382,6 +531,7 @@ importFileInput.addEventListener('change', (e) => {
         renderBookmarks();
         renderPagination();
         updateStorageUsage();
+        checkAndCleanupStorage();
 
         // メッセージを表示
         let message = `${newBookmarks.length}件のブックマークをインポートしました`;
