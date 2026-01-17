@@ -20,26 +20,28 @@ body {
 
 .password-container {
   background-color: white;
-  padding: 40px;
+  padding: 25px;
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   text-align: center;
-  min-width: 300px;
+  min-width: 250px;
+  max-width: 320px;
+  margin: 10px auto 0;
 }
 
 .password-container h2 {
-  margin: 0 0 20px 0;
+  margin: 0 0 15px 0;
   color: #333;
-  font-size: 20px;
+  font-size: 18px;
 }
 
 .password-input {
   width: 100%;
-  padding: 12px;
-  font-size: 16px;
+  padding: 10px;
+  font-size: 14px;
   border: 1px solid #ddd;
   border-radius: 4px;
-  margin-bottom: 15px;
+  margin-bottom: 12px;
   box-sizing: border-box;
 }
 
@@ -50,15 +52,15 @@ body {
 
 .password-error {
   color: #ea4335;
-  font-size: 14px;
-  margin-bottom: 15px;
-  min-height: 20px;
+  font-size: 13px;
+  margin-bottom: 12px;
+  min-height: 18px;
 }
 
 .password-container .btn {
   width: 100%;
-  padding: 12px;
-  font-size: 16px;
+  padding: 10px;
+  font-size: 14px;
 }
 
 .container {
