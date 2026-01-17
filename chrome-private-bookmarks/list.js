@@ -270,14 +270,15 @@ downloadBtn.addEventListener('click', () => {
   }
 
   // CSVヘッダー
-  let csv = 'タイトル,URL,日時\n';
+  let csv = 'タイトル,URL,日時,保護\n';
   
   // データ行
   filteredBookmarks.forEach(bookmark => {
     const title = escapeCsv(bookmark.title || '');
     const url = escapeCsv(bookmark.url || '');
     const date = new Date(bookmark.date).toLocaleString('ja-JP');
-    csv += `${title},${url},${date}\n`;
+    const protected = (bookmark.protected || false) ? '1' : '0';
+    csv += `${title},${url},${date},${protected}\n`;
   });
 
   // Blobを作成してダウンロード
@@ -446,6 +447,7 @@ function parseCSV(csvText) {
       const title = fields[0].trim();
       const url = fields[1].trim();
       const dateStr = fields[2].trim();
+      const protectedStr = fields.length >= 4 ? fields[3].trim() : '0';
 
       if (url) {
         // 日付のパース（複数の形式に対応）
@@ -460,10 +462,14 @@ function parseCSV(csvText) {
           date = new Date();
         }
 
+        // 保護状態のパース（'1'または'true'で保護、それ以外は非保護）
+        const isProtected = protectedStr === '1' || protectedStr.toLowerCase() === 'true';
+
         bookmarks.push({
           title: title || url,
           url: url,
-          date: date.toISOString()
+          date: date.toISOString(),
+          protected: isProtected
         });
       }
     }
