@@ -68,15 +68,51 @@ function addBookmark() {
         const bookmarks = result.bookmarks || [];
         
         // 重複チェック（同じURLが既に存在するか）
-        const exists = bookmarks.some(b => b.url === bookmark.url);
+        const existingIndex = bookmarks.findIndex(b => b.url === bookmark.url);
         
-        if (!exists) {
+        if (existingIndex === -1) {
           // 新しいブックマークを先頭に追加
           bookmarks.unshift(bookmark);
           
           // ストレージに保存
           chrome.storage.sync.set({ bookmarks: bookmarks }, () => {
             console.log('ブックマークを保存しました');
+            // 成功メッセージを表示
+            const successMessage = document.getElementById('successMessage');
+            const duplicateMessage = document.getElementById('duplicateMessage');
+            if (successMessage) successMessage.style.display = 'block';
+            if (duplicateMessage) duplicateMessage.style.display = 'none';
+          });
+        } else {
+          // 重複している場合
+          const existingBookmark = bookmarks[existingIndex];
+          
+          // 日時を更新
+          existingBookmark.date = bookmark.date;
+          // タイトルも更新（ページタイトルが変更されている可能性がある）
+          existingBookmark.title = bookmark.title;
+          
+          // 既存のブックマークを先頭に移動
+          bookmarks.splice(existingIndex, 1);
+          bookmarks.unshift(existingBookmark);
+          
+          // 保護されたブックマークを先に表示するように再ソート
+          bookmarks.sort((a, b) => {
+            const aProtected = a.protected || false;
+            const bProtected = b.protected || false;
+            if (aProtected && !bProtected) return -1;
+            if (!aProtected && bProtected) return 1;
+            return new Date(b.date) - new Date(a.date);
+          });
+          
+          // ストレージに保存
+          chrome.storage.sync.set({ bookmarks: bookmarks }, () => {
+            console.log('ブックマークを更新しました');
+            // 重複メッセージを表示
+            const successMessage = document.getElementById('successMessage');
+            const duplicateMessage = document.getElementById('duplicateMessage');
+            if (successMessage) successMessage.style.display = 'none';
+            if (duplicateMessage) duplicateMessage.style.display = 'block';
           });
         }
       });
