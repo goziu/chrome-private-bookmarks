@@ -7,12 +7,20 @@ chrome.runtime.onInstalled.addListener(() => {
     title: 'ブックマークリストを開く',
     contexts: ['action']
   });
+  
+  chrome.contextMenus.create({
+    id: 'changePassword',
+    title: 'パスワードを設定（変更）する',
+    contexts: ['action']
+  });
 });
 
 // コンテキストメニューのクリック処理
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (info.menuItemId === 'openBookmarkList') {
     chrome.tabs.create({ url: chrome.runtime.getURL('list.html') });
+  } else if (info.menuItemId === 'changePassword') {
+    chrome.tabs.create({ url: chrome.runtime.getURL('list.html?changePassword=true') });
   }
 });
 

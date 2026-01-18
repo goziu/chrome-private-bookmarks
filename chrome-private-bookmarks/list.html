@@ -7,6 +7,23 @@
   <link rel="stylesheet" href="list.css">
 </head>
 <body>
+  <!-- パスワード設定画面（初回起動時・変更時） -->
+  <div id="passwordSetupScreen" class="password-screen" style="display: none;">
+    <div class="password-container">
+      <h2 id="passwordSetupTitle">パスワードを設定してください</h2>
+      <p class="setup-description" id="passwordSetupDescription">ブックマークリストを保護するためのパスワードを設定します。設定しない場合は「パスワードを利用しない」を選択してください。</p>
+      <input type="password" id="oldPasswordInput" placeholder="現在のパスワード" class="password-input" style="display: none;">
+      <input type="password" id="newPasswordInput" placeholder="パスワード（任意）" class="password-input">
+      <input type="password" id="confirmPasswordInput" placeholder="パスワード確認（任意）" class="password-input">
+      <div id="setupPasswordError" class="password-error"></div>
+      <div class="setup-buttons">
+        <button id="setupPasswordBtn" class="btn btn-primary">パスワードを設定</button>
+        <button id="skipPasswordBtn" class="btn btn-secondary" style="display: none;">パスワードを利用しない</button>
+        <button id="cancelPasswordBtn" class="btn btn-secondary" style="display: none;">キャンセル</button>
+      </div>
+    </div>
+  </div>
+
   <!-- パスワードロック画面 -->
   <div id="passwordScreen" class="password-screen">
     <div class="password-container">
