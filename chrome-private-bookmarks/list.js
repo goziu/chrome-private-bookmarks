@@ -720,7 +720,11 @@ importFileInput.addEventListener('change', async (e) => {
   const file = e.target.files[0];
   if (!file) return;
 
-  if (!file.name.endsWith('.csv') && !file.name.endsWith('.encrypted.csv')) {
+  // ファイル名に .encrypted が含まれているか、または .csv で終わっているかをチェック
+  const isEncryptedFile = file.name.includes('.encrypted');
+  const isCsvFile = file.name.endsWith('.csv') || file.name.endsWith('.encrypted.csv');
+  
+  if (!isCsvFile && !isEncryptedFile) {
     importMessage.textContent = 'エラー: CSVファイルまたは暗号化されたCSVファイルを選択してください';
     importMessage.className = 'import-message error';
     return;
@@ -731,8 +735,8 @@ importFileInput.addEventListener('change', async (e) => {
     try {
       let csvText;
       
-      // 暗号化されたファイルの場合
-      if (file.name.endsWith('.encrypted.csv')) {
+      // 暗号化されたファイルの場合（ファイル名に .encrypted が含まれている場合）
+      if (isEncryptedFile) {
         const password = prompt('暗号化されたCSVファイルのパスワードを入力してください:');
         if (!password) {
           importMessage.textContent = 'パスワードが入力されませんでした';
@@ -821,7 +825,7 @@ importFileInput.addEventListener('change', async (e) => {
   };
 
   // 暗号化されたファイルの場合はテキストとして、通常のCSVの場合はUTF-8 BOMを考慮して読み込む
-  if (file.name.endsWith('.encrypted.csv')) {
+  if (isEncryptedFile) {
     reader.readAsText(file);
   } else {
     reader.readAsText(file, 'UTF-8');
