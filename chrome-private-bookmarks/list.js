@@ -690,26 +690,32 @@ async function setupPassword() {
   const newPassword = newPasswordInput.value;
   const confirmPassword = confirmPasswordInput.value;
   
-  if (newPassword !== confirmPassword) {
-    setupPasswordError.textContent = 'パスワードが一致しません';
-    return;
-  }
+  // エラーメッセージをクリア
+  setupPasswordError.textContent = '';
   
-  if (newPassword.length > 0 && newPassword.length < 4) {
-    setupPasswordError.textContent = 'パスワードは4文字以上にしてください';
-    return;
-  }
-  
+  // パスワードが入力されている場合、確認パスワードと一致するかチェック
   if (newPassword.length > 0) {
+    if (newPassword !== confirmPassword) {
+      setupPasswordError.textContent = 'パスワードが一致しません';
+      return;
+    }
+    
+    if (newPassword.length < 4) {
+      setupPasswordError.textContent = 'パスワードは4文字以上にしてください';
+      return;
+    }
+    
     // パスワードをハッシュ化して保存
     const passwordHash = await hashPassword(newPassword);
     chrome.storage.sync.set({ passwordHash: passwordHash, usePassword: true }, () => {
+      console.log('パスワードを設定しました');
       sessionStorage.setItem('bookmarkListAuthenticated', 'true');
       showMainContent();
     });
   } else {
-    // パスワードを利用しない
+    // パスワードが空の場合は「パスワードを利用しない」と同じ処理
     chrome.storage.sync.set({ usePassword: false }, () => {
+      console.log('パスワードを利用しない設定を保存しました');
       sessionStorage.setItem('bookmarkListAuthenticated', 'true');
       showMainContent();
     });
@@ -719,6 +725,7 @@ async function setupPassword() {
 // パスワードをスキップ
 function skipPassword() {
   chrome.storage.sync.set({ usePassword: false }, () => {
+    console.log('パスワードを利用しない設定を保存しました');
     sessionStorage.setItem('bookmarkListAuthenticated', 'true');
     showMainContent();
   });
@@ -727,6 +734,7 @@ function skipPassword() {
 // メインコンテンツを表示
 function showMainContent() {
   passwordScreen.style.display = 'none';
+  passwordSetupScreen.style.display = 'none';
   mainContent.style.display = 'block';
   loadBookmarks();
 }
@@ -773,12 +781,29 @@ async function checkAuthentication() {
 }
 
 // パスワード設定ボタン
-setupPasswordBtn.addEventListener('click', async () => {
-  await setupPassword();
-});
+if (setupPasswordBtn) {
+  setupPasswordBtn.addEventListener('click', async (e) => {
+    e.preventDefault();
+    try {
+      await setupPassword();
+    } catch (error) {
+      console.error('パスワード設定エラー:', error);
+      setupPasswordError.textContent = 'エラーが発生しました';
+    }
+  });
+}
 
 // パスワードスキップボタン
-skipPasswordBtn.addEventListener('click', skipPassword);
+if (skipPasswordBtn) {
+  skipPasswordBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    try {
+      skipPassword();
+    } catch (error) {
+      console.error('パスワードスキップエラー:', error);
+    }
+  });
+}
 
 // パスワード設定画面でEnterキーを押したとき
 newPasswordInput.addEventListener('keypress', async (e) => {
