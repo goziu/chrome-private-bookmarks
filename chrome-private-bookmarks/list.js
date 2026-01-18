@@ -10,6 +10,7 @@ const mainContent = document.getElementById('mainContent');
 const passwordInput = document.getElementById('passwordInput');
 const passwordError = document.getElementById('passwordError');
 const passwordSubmit = document.getElementById('passwordSubmit');
+const forgotPasswordLink = document.getElementById('forgotPasswordLink');
 const newPasswordInput = document.getElementById('newPasswordInput');
 const confirmPasswordInput = document.getElementById('confirmPasswordInput');
 const oldPasswordInput = document.getElementById('oldPasswordInput');
@@ -820,6 +821,34 @@ passwordInput.addEventListener('keypress', (e) => {
 
 // パスワード送信ボタン
 passwordSubmit.addEventListener('click', checkPassword);
+
+// パスワードを忘れた場合のデータリセット
+if (forgotPasswordLink) {
+  forgotPasswordLink.addEventListener('click', (e) => {
+    e.preventDefault();
+    
+    // 警告メッセージを表示
+    const warningMessage = 
+      'パスワードを忘れた場合、すべてのデータ（ブックマーク、パスワード設定）が削除されます。\n\n' +
+      'この操作は取り消せません。\n\n' +
+      'CSVバックアップがある場合は、リセット後にインポートして復元できます。\n\n' +
+      '本当にデータをリセットしますか？';
+    
+    if (confirm(warningMessage)) {
+      // 最終確認
+      if (confirm('本当にすべてのデータを削除しますか？\n\nこの操作は取り消せません。')) {
+        // すべてのデータを削除
+        chrome.storage.sync.clear(() => {
+          console.log('すべてのデータをリセットしました');
+          // セッションストレージもクリア
+          sessionStorage.clear();
+          // パスワード設定画面を表示
+          showPasswordSetup(false);
+        });
+      }
+    }
+  });
+}
 
 // 認証状態をチェック
 async function checkAuthentication() {
