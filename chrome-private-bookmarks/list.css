@@ -115,21 +115,6 @@ h1 {
   font-size: 24px;
 }
 
-.storage-info {
-  background-color: #e8f0fe;
-  color: #1967d2;
-  padding: 8px 12px;
-  border-radius: 4px;
-  font-size: 13px;
-  margin-bottom: 15px;
-  text-align: center;
-}
-
-.storage-info.warning {
-  background-color: #fce8e6;
-  color: #c5221f;
-}
-
 .controls {
   display: flex;
   flex-wrap: wrap;
