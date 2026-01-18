@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "個人用ブックマークリスト",
-  "version": "1.0.0",
-  "description": "個人用のブックマークリストを作成するChrome拡張",
+  "name": "Password Protected Bookmark",
+  "version": "1.0.1",
+  "description": "パスワード付きのブックマークリストを作成するChrome拡張",
   "permissions": [
     "storage",
     "tabs",
