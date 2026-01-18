@@ -330,33 +330,190 @@ function goToPage(page) {
   window.scrollTo(0, 0);
 }
 
+// AES-GCM暗号化関数
+async function encryptData(data, password) {
+  const encoder = new TextEncoder();
+  const dataBuffer = encoder.encode(data);
+  
+  // パスワードからキーを導出
+  const passwordBuffer = encoder.encode(password);
+  const passwordKey = await crypto.subtle.importKey(
+    'raw',
+    passwordBuffer,
+    'PBKDF2',
+    false,
+    ['deriveBits', 'deriveKey']
+  );
+  
+  // ソルトとIVを生成
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  
+  // キーを導出
+  const key = await crypto.subtle.deriveKey(
+    {
+      name: 'PBKDF2',
+      salt: salt,
+      iterations: 100000,
+      hash: 'SHA-256'
+    },
+    passwordKey,
+    {
+      name: 'AES-GCM',
+      length: 256
+    },
+    false,
+    ['encrypt']
+  );
+  
+  // データを暗号化
+  const encryptedData = await crypto.subtle.encrypt(
+    {
+      name: 'AES-GCM',
+      iv: iv
+    },
+    key,
+    dataBuffer
+  );
+  
+  // ソルト、IV、暗号化データを結合してBase64エンコード
+  const combined = new Uint8Array(salt.length + iv.length + encryptedData.byteLength);
+  combined.set(salt, 0);
+  combined.set(iv, salt.length);
+  combined.set(new Uint8Array(encryptedData), salt.length + iv.length);
+  
+  return btoa(String.fromCharCode(...combined));
+}
+
+// AES-GCM復号化関数
+async function decryptData(encryptedBase64, password) {
+  try {
+    const decoder = new TextDecoder();
+    
+    // Base64デコード
+    const combined = Uint8Array.from(atob(encryptedBase64), c => c.charCodeAt(0));
+    
+    // ソルト、IV、暗号化データを分離
+    const salt = combined.slice(0, 16);
+    const iv = combined.slice(16, 28);
+    const encryptedData = combined.slice(28);
+    
+    // パスワードからキーを導出
+    const encoder = new TextEncoder();
+    const passwordBuffer = encoder.encode(password);
+    const passwordKey = await crypto.subtle.importKey(
+      'raw',
+      passwordBuffer,
+      'PBKDF2',
+      false,
+      ['deriveBits', 'deriveKey']
+    );
+    
+    // キーを導出
+    const key = await crypto.subtle.deriveKey(
+      {
+        name: 'PBKDF2',
+        salt: salt,
+        iterations: 100000,
+        hash: 'SHA-256'
+      },
+      passwordKey,
+      {
+        name: 'AES-GCM',
+        length: 256
+      },
+      false,
+      ['decrypt']
+    );
+    
+    // データを復号化
+    const decryptedData = await crypto.subtle.decrypt(
+      {
+        name: 'AES-GCM',
+        iv: iv
+      },
+      key,
+      encryptedData
+    );
+    
+    return decoder.decode(decryptedData);
+  } catch (error) {
+    throw new Error('復号化に失敗しました。パスワードが正しくない可能性があります。');
+  }
+}
+
 // CSVダウンロード
-downloadBtn.addEventListener('click', () => {
+downloadBtn.addEventListener('click', async () => {
   if (filteredBookmarks.length === 0) {
     alert('ダウンロードするブックマークがありません');
     return;
   }
 
-  // CSVヘッダー
-  let csv = 'タイトル,URL,日時,保護\n';
-  
-  // データ行
-  filteredBookmarks.forEach(bookmark => {
-    const title = escapeCsv(bookmark.title || '');
-    const url = escapeCsv(bookmark.url || '');
-    const date = new Date(bookmark.date).toLocaleString('ja-JP');
-    const protected = (bookmark.protected || false) ? '1' : '0';
-    csv += `${title},${url},${date},${protected}\n`;
-  });
+  // パスワードが設定されているかチェック
+  chrome.storage.sync.get(['usePassword', 'passwordHash'], async (result) => {
+    const usePassword = result.usePassword !== false;
+    
+    if (usePassword) {
+      // パスワードが設定されている場合、パスワードを入力してもらう
+      const password = prompt('CSVファイルを暗号化するためのパスワードを入力してください:');
+      if (!password) {
+        return; // キャンセルされた場合
+      }
+      
+      if (password.length < 4) {
+        alert('パスワードは4文字以上にしてください');
+        return;
+      }
+      
+      // CSVデータを作成
+      let csv = 'タイトル,URL,日時,保護\n';
+      filteredBookmarks.forEach(bookmark => {
+        const title = escapeCsv(bookmark.title || '');
+        const url = escapeCsv(bookmark.url || '');
+        const date = new Date(bookmark.date).toLocaleString('ja-JP');
+        const protected = (bookmark.protected || false) ? '1' : '0';
+        csv += `${title},${url},${date},${protected}\n`;
+      });
+      
+      try {
+        // データを暗号化
+        const encryptedData = await encryptData('\uFEFF' + csv, password);
+        
+        // 暗号化されたデータをダウンロード
+        const blob = new Blob([encryptedData], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `bookmarks_${new Date().toISOString().split('T')[0]}.encrypted.csv`;
+        link.click();
+        URL.revokeObjectURL(url);
+      } catch (error) {
+        alert('暗号化に失敗しました: ' + error.message);
+      }
+    } else {
+      // パスワードが設定されていない場合、通常のCSVをダウンロード
+      // CSVヘッダー
+      let csv = 'タイトル,URL,日時,保護\n';
+      
+      // データ行
+      filteredBookmarks.forEach(bookmark => {
+        const title = escapeCsv(bookmark.title || '');
+        const url = escapeCsv(bookmark.url || '');
+        const date = new Date(bookmark.date).toLocaleString('ja-JP');
+        const protected = (bookmark.protected || false) ? '1' : '0';
+        csv += `${title},${url},${date},${protected}\n`;
+      });
 
-  // Blobを作成してダウンロード
-  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `bookmarks_${new Date().toISOString().split('T')[0]}.csv`;
-  link.click();
-  URL.revokeObjectURL(url);
+      // Blobを作成してダウンロード
+      const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `bookmarks_${new Date().toISOString().split('T')[0]}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+  });
 });
 
 // 保護機能のトグル
@@ -551,20 +708,46 @@ importBtn.addEventListener('click', () => {
   importFileInput.click();
 });
 
-importFileInput.addEventListener('change', (e) => {
+importFileInput.addEventListener('change', async (e) => {
   const file = e.target.files[0];
   if (!file) return;
 
-  if (!file.name.endsWith('.csv')) {
-    importMessage.textContent = 'エラー: CSVファイルを選択してください';
+  if (!file.name.endsWith('.csv') && !file.name.endsWith('.encrypted.csv')) {
+    importMessage.textContent = 'エラー: CSVファイルまたは暗号化されたCSVファイルを選択してください';
     importMessage.className = 'import-message error';
     return;
   }
 
   const reader = new FileReader();
-  reader.onload = (event) => {
+  reader.onload = async (event) => {
     try {
-      const csvText = event.target.result;
+      let csvText;
+      
+      // 暗号化されたファイルの場合
+      if (file.name.endsWith('.encrypted.csv')) {
+        const password = prompt('暗号化されたCSVファイルのパスワードを入力してください:');
+        if (!password) {
+          importMessage.textContent = 'パスワードが入力されませんでした';
+          importMessage.className = 'import-message error';
+          importFileInput.value = '';
+          return;
+        }
+        
+        try {
+          // 暗号化されたデータを復号化
+          const encryptedData = event.target.result;
+          csvText = await decryptData(encryptedData, password);
+        } catch (error) {
+          importMessage.textContent = `エラー: ${error.message}`;
+          importMessage.className = 'import-message error';
+          importFileInput.value = '';
+          return;
+        }
+      } else {
+        // 通常のCSVファイルの場合
+        csvText = event.target.result;
+      }
+      
       const importedBookmarks = parseCSV(csvText);
 
       if (importedBookmarks.length === 0) {
@@ -629,8 +812,12 @@ importFileInput.addEventListener('change', (e) => {
     importMessage.className = 'import-message error';
   };
 
-  // UTF-8 BOMを考慮して読み込む
-  reader.readAsText(file, 'UTF-8');
+  // 暗号化されたファイルの場合はテキストとして、通常のCSVの場合はUTF-8 BOMを考慮して読み込む
+  if (file.name.endsWith('.encrypted.csv')) {
+    reader.readAsText(file);
+  } else {
+    reader.readAsText(file, 'UTF-8');
+  }
 });
 
 // パスワードをハッシュ化
