@@ -19,10 +19,68 @@ const importBtn = document.getElementById('importBtn');
 const importFileInput = document.getElementById('importFileInput');
 const importMessage = document.getElementById('importMessage');
 
+// 重複を削除する関数（同じURLのデータが複数ある場合、最新のものを残す）
+function removeDuplicates(bookmarks) {
+  const urlMap = new Map();
+  let hasDuplicates = false;
+
+  // 各ブックマークを処理
+  for (const bookmark of bookmarks) {
+    const url = bookmark.url;
+    
+    if (!urlMap.has(url)) {
+      // 初めて見つかったURL
+      urlMap.set(url, bookmark);
+    } else {
+      // 重複が見つかった
+      hasDuplicates = true;
+      const existing = urlMap.get(url);
+      const existingDate = new Date(existing.date);
+      const newDate = new Date(bookmark.date);
+      
+      // より新しい日時のものを残す（日時が同じ場合は既存のものを残す）
+      if (newDate > existingDate) {
+        urlMap.set(url, bookmark);
+      }
+      // 保護状態を考慮（どちらかが保護されている場合は保護されている方を優先）
+      else if (newDate.getTime() === existingDate.getTime()) {
+        if (bookmark.protected && !existing.protected) {
+          urlMap.set(url, bookmark);
+        } else if (!bookmark.protected && existing.protected) {
+          // 既存の保護されたものを残す
+        } else {
+          // 両方保護されている、または両方保護されていない場合は既存のものを残す
+        }
+      }
+    }
+  }
+
+  if (hasDuplicates) {
+    // 重複があった場合、Mapから配列に変換
+    return Array.from(urlMap.values());
+  }
+  
+  return bookmarks;
+}
+
 // ブックマークを読み込む
 function loadBookmarks() {
   chrome.storage.sync.get(['bookmarks'], (result) => {
-    allBookmarks = result.bookmarks || [];
+    let bookmarks = result.bookmarks || [];
+    
+    // 重複を削除
+    const originalCount = bookmarks.length;
+    bookmarks = removeDuplicates(bookmarks);
+    const removedCount = originalCount - bookmarks.length;
+    
+    // 重複が削除された場合、ストレージに保存
+    if (removedCount > 0) {
+      chrome.storage.sync.set({ bookmarks: bookmarks }, () => {
+        console.log(`${removedCount}件の重複ブックマークを削除しました`);
+      });
+    }
+    
+    allBookmarks = bookmarks;
     // 保護されたブックマークを先に、その後登録順にソート
     allBookmarks.sort((a, b) => {
       const aProtected = a.protected || false;
@@ -610,6 +668,27 @@ function checkAuthentication() {
     passwordInput.focus();
   }
 }
+
+// ストレージ変更を監視（同期時に自動的に重複をチェック）
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName === 'sync' && changes.bookmarks) {
+    // ブックマークデータが変更された場合（同期など）、重複をチェック
+    const newBookmarks = changes.bookmarks.newValue || [];
+    const deduplicatedBookmarks = removeDuplicates(newBookmarks);
+    
+    // 重複が削除された場合、ストレージに保存
+    if (deduplicatedBookmarks.length < newBookmarks.length) {
+      chrome.storage.sync.set({ bookmarks: deduplicatedBookmarks }, () => {
+        console.log('同期時に重複ブックマークを削除しました');
+        // データを再読み込み
+        loadBookmarks();
+      });
+    } else {
+      // 重複がない場合でも、データを再読み込み（表示を更新）
+      loadBookmarks();
+    }
+  }
+});
 
 // 初期化
 checkAuthentication();
