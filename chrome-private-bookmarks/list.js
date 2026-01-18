@@ -630,13 +630,21 @@ function escapeCsv(text) {
 
 // CSVパース（シンプルな実装）
 function parseCSV(csvText) {
-  const lines = csvText.split('\n');
+  // BOM（Byte Order Mark）を削除
+  if (csvText.charCodeAt(0) === 0xFEFF) {
+    csvText = csvText.slice(1);
+  }
+  
+  // 改行コードを統一（\r\n → \n）
+  csvText = csvText.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  
+  const lines = csvText.split('\n').filter(line => line.trim() !== '');
   if (lines.length < 2) {
     throw new Error('CSVファイルの形式が正しくありません');
   }
 
   // ヘッダー行をスキップ
-  const dataLines = lines.slice(1).filter(line => line.trim() !== '');
+  const dataLines = lines.slice(1);
   const bookmarks = [];
 
   for (const line of dataLines) {
