@@ -1,15 +1,20 @@
 const ITEMS_PER_PAGE = 100;
-const PASSWORD = 'mb4649!'; // 固定パスワード
 let allBookmarks = [];
 let filteredBookmarks = [];
 let currentPage = 1;
 
 // DOM要素の取得
+const passwordSetupScreen = document.getElementById('passwordSetupScreen');
 const passwordScreen = document.getElementById('passwordScreen');
 const mainContent = document.getElementById('mainContent');
 const passwordInput = document.getElementById('passwordInput');
 const passwordError = document.getElementById('passwordError');
 const passwordSubmit = document.getElementById('passwordSubmit');
+const newPasswordInput = document.getElementById('newPasswordInput');
+const confirmPasswordInput = document.getElementById('confirmPasswordInput');
+const setupPasswordError = document.getElementById('setupPasswordError');
+const setupPasswordBtn = document.getElementById('setupPasswordBtn');
+const skipPasswordBtn = document.getElementById('skipPasswordBtn');
 const searchInput = document.getElementById('searchInput');
 const bookmarkList = document.getElementById('bookmarkList');
 const pagination = document.getElementById('pagination');
@@ -623,20 +628,100 @@ importFileInput.addEventListener('change', (e) => {
   reader.readAsText(file, 'UTF-8');
 });
 
+// パスワードをハッシュ化
+async function hashPassword(password) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password);
+  const hash = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(hash))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
 // パスワード認証
-function checkPassword() {
+async function checkPassword() {
   const inputPassword = passwordInput.value;
   
-  if (inputPassword === PASSWORD) {
-    // 認証成功
+  // パスワード設定を確認
+  chrome.storage.sync.get(['passwordHash', 'usePassword'], async (result) => {
+    const usePassword = result.usePassword !== false; // デフォルトはtrue（後方互換性のため）
+    
+    if (!usePassword) {
+      // パスワードを使用しない場合
+      sessionStorage.setItem('bookmarkListAuthenticated', 'true');
+      showMainContent();
+      return;
+    }
+    
+    const storedHash = result.passwordHash;
+    
+    if (!storedHash) {
+      // パスワードが設定されていない場合（初回起動）
+      showPasswordSetup();
+      return;
+    }
+    
+    // 入力パスワードをハッシュ化して比較
+    const inputHash = await hashPassword(inputPassword);
+    
+    if (inputHash === storedHash) {
+      // 認証成功
+      sessionStorage.setItem('bookmarkListAuthenticated', 'true');
+      showMainContent();
+    } else {
+      // 認証失敗
+      passwordError.textContent = 'パスワードが正しくありません';
+      passwordInput.value = '';
+      passwordInput.focus();
+    }
+  });
+}
+
+// パスワード設定画面を表示
+function showPasswordSetup() {
+  passwordScreen.style.display = 'none';
+  passwordSetupScreen.style.display = 'flex';
+  mainContent.style.display = 'none';
+  newPasswordInput.focus();
+}
+
+// パスワードを設定
+async function setupPassword() {
+  const newPassword = newPasswordInput.value;
+  const confirmPassword = confirmPasswordInput.value;
+  
+  if (newPassword !== confirmPassword) {
+    setupPasswordError.textContent = 'パスワードが一致しません';
+    return;
+  }
+  
+  if (newPassword.length > 0 && newPassword.length < 4) {
+    setupPasswordError.textContent = 'パスワードは4文字以上にしてください';
+    return;
+  }
+  
+  if (newPassword.length > 0) {
+    // パスワードをハッシュ化して保存
+    const passwordHash = await hashPassword(newPassword);
+    chrome.storage.sync.set({ passwordHash: passwordHash, usePassword: true }, () => {
+      sessionStorage.setItem('bookmarkListAuthenticated', 'true');
+      showMainContent();
+    });
+  } else {
+    // パスワードを利用しない
+    chrome.storage.sync.set({ usePassword: false }, () => {
+      sessionStorage.setItem('bookmarkListAuthenticated', 'true');
+      showMainContent();
+    });
+  }
+}
+
+// パスワードをスキップ
+function skipPassword() {
+  chrome.storage.sync.set({ usePassword: false }, () => {
     sessionStorage.setItem('bookmarkListAuthenticated', 'true');
     showMainContent();
-  } else {
-    // 認証失敗
-    passwordError.textContent = 'パスワードが正しくありません';
-    passwordInput.value = '';
-    passwordInput.focus();
-  }
+  });
 }
 
 // メインコンテンツを表示
@@ -657,17 +742,56 @@ passwordInput.addEventListener('keypress', (e) => {
 passwordSubmit.addEventListener('click', checkPassword);
 
 // 認証状態をチェック
-function checkAuthentication() {
+async function checkAuthentication() {
   const isAuthenticated = sessionStorage.getItem('bookmarkListAuthenticated') === 'true';
   
   if (isAuthenticated) {
     showMainContent();
   } else {
-    passwordScreen.style.display = 'block';
-    mainContent.style.display = 'none';
-    passwordInput.focus();
+    // パスワード設定を確認
+    chrome.storage.sync.get(['passwordHash', 'usePassword'], async (result) => {
+      const usePassword = result.usePassword !== false; // デフォルトはtrue（後方互換性のため）
+      const hasPassword = !!result.passwordHash;
+      
+      // 後方互換性: 既存の固定パスワードを自動移行
+      if (!hasPassword && usePassword) {
+        // パスワードが設定されていない場合（初回起動）
+        showPasswordSetup();
+      } else if (!usePassword) {
+        // パスワードを使用しない設定の場合
+        sessionStorage.setItem('bookmarkListAuthenticated', 'true');
+        showMainContent();
+      } else {
+        // パスワード入力画面を表示
+        passwordScreen.style.display = 'flex';
+        passwordSetupScreen.style.display = 'none';
+        mainContent.style.display = 'none';
+        passwordInput.focus();
+      }
+    });
   }
 }
+
+// パスワード設定ボタン
+setupPasswordBtn.addEventListener('click', async () => {
+  await setupPassword();
+});
+
+// パスワードスキップボタン
+skipPasswordBtn.addEventListener('click', skipPassword);
+
+// パスワード設定画面でEnterキーを押したとき
+newPasswordInput.addEventListener('keypress', async (e) => {
+  if (e.key === 'Enter') {
+    await setupPassword();
+  }
+});
+
+confirmPasswordInput.addEventListener('keypress', async (e) => {
+  if (e.key === 'Enter') {
+    await setupPassword();
+  }
+});
 
 // ストレージ変更を監視（同期時に自動的に重複をチェック）
 chrome.storage.onChanged.addListener((changes, areaName) => {
