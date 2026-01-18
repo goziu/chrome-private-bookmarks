@@ -75,7 +75,7 @@ function removeDuplicates(bookmarks) {
 
 // ブックマークを読み込む
 function loadBookmarks() {
-  chrome.storage.sync.get(['bookmarks'], (result) => {
+  chrome.storage.local.get(['bookmarks'], (result) => {
     let bookmarks = result.bookmarks || [];
     
     // 重複を削除
@@ -85,7 +85,7 @@ function loadBookmarks() {
     
     // 重複が削除された場合、ストレージに保存
     if (removedCount > 0) {
-      chrome.storage.sync.set({ bookmarks: bookmarks }, () => {
+      chrome.storage.local.set({ bookmarks: bookmarks }, () => {
         console.log(`${removedCount}件の重複ブックマークを削除しました`);
       });
     }
@@ -163,7 +163,7 @@ function checkAndCleanupStorage() {
 
     if (removedCount > 0) {
       // ストレージに保存
-      chrome.storage.sync.set({ bookmarks: currentBookmarks }, () => {
+      chrome.storage.local.set({ bookmarks: currentBookmarks }, () => {
         allBookmarks = currentBookmarks;
         // 保護されたブックマークを先に表示するように再ソート
         allBookmarks.sort((a, b) => {
@@ -450,7 +450,7 @@ downloadBtn.addEventListener('click', async () => {
   }
 
   // パスワードが設定されているかチェック
-  chrome.storage.sync.get(['usePassword', 'passwordHash'], async (result) => {
+  chrome.storage.local.get(['usePassword', 'passwordHash'], async (result) => {
     const usePassword = result.usePassword !== false;
     
     if (usePassword) {
@@ -554,7 +554,7 @@ function toggleProtect(url) {
   }
 
   // ストレージに保存
-  chrome.storage.sync.set({ bookmarks: allBookmarks }, () => {
+  chrome.storage.local.set({ bookmarks: allBookmarks }, () => {
     currentPage = 1;
     renderBookmarks();
     renderPagination();
@@ -577,7 +577,7 @@ function deleteBookmark(url) {
     filteredBookmarks = filteredBookmarks.filter(b => b.url !== url);
     
     // ストレージに保存
-    chrome.storage.sync.set({ bookmarks: allBookmarks }, () => {
+    chrome.storage.local.set({ bookmarks: allBookmarks }, () => {
       // 現在のページにアイテムがなくなった場合、前のページに移動
       const totalPages = Math.ceil(filteredBookmarks.length / ITEMS_PER_PAGE);
       if (currentPage > totalPages && totalPages > 0) {
@@ -600,7 +600,7 @@ clearBtn.addEventListener('click', () => {
   }
 
   if (confirm('すべてのブックマークを削除しますか？この操作は取り消せません。')) {
-    chrome.storage.sync.set({ bookmarks: [] }, () => {
+    chrome.storage.local.set({ bookmarks: [] }, () => {
       allBookmarks = [];
       filteredBookmarks = [];
       currentPage = 1;
@@ -630,13 +630,21 @@ function escapeCsv(text) {
 
 // CSVパース（シンプルな実装）
 function parseCSV(csvText) {
-  const lines = csvText.split('\n');
+  // BOM（Byte Order Mark）を削除
+  if (csvText.charCodeAt(0) === 0xFEFF) {
+    csvText = csvText.slice(1);
+  }
+  
+  // 改行コードを統一（\r\n → \n）
+  csvText = csvText.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  
+  const lines = csvText.split('\n').filter(line => line.trim() !== '');
   if (lines.length < 2) {
     throw new Error('CSVファイルの形式が正しくありません');
   }
 
   // ヘッダー行をスキップ
-  const dataLines = lines.slice(1).filter(line => line.trim() !== '');
+  const dataLines = lines.slice(1);
   const bookmarks = [];
 
   for (const line of dataLines) {
@@ -712,7 +720,11 @@ importFileInput.addEventListener('change', async (e) => {
   const file = e.target.files[0];
   if (!file) return;
 
-  if (!file.name.endsWith('.csv') && !file.name.endsWith('.encrypted.csv')) {
+  // ファイル名に .encrypted が含まれているか、または .csv で終わっているかをチェック
+  const isEncryptedFile = file.name.includes('.encrypted');
+  const isCsvFile = file.name.endsWith('.csv') || file.name.endsWith('.encrypted.csv');
+  
+  if (!isCsvFile && !isEncryptedFile) {
     importMessage.textContent = 'エラー: CSVファイルまたは暗号化されたCSVファイルを選択してください';
     importMessage.className = 'import-message error';
     return;
@@ -723,8 +735,8 @@ importFileInput.addEventListener('change', async (e) => {
     try {
       let csvText;
       
-      // 暗号化されたファイルの場合
-      if (file.name.endsWith('.encrypted.csv')) {
+      // 暗号化されたファイルの場合（ファイル名に .encrypted が含まれている場合）
+      if (isEncryptedFile) {
         const password = prompt('暗号化されたCSVファイルのパスワードを入力してください:');
         if (!password) {
           importMessage.textContent = 'パスワードが入力されませんでした';
@@ -774,7 +786,7 @@ importFileInput.addEventListener('change', async (e) => {
       });
 
       // ストレージに保存
-      chrome.storage.sync.set({ bookmarks: mergedBookmarks }, () => {
+      chrome.storage.local.set({ bookmarks: mergedBookmarks }, () => {
         allBookmarks = mergedBookmarks;
         filteredBookmarks = [...allBookmarks];
         currentPage = 1;
@@ -813,7 +825,7 @@ importFileInput.addEventListener('change', async (e) => {
   };
 
   // 暗号化されたファイルの場合はテキストとして、通常のCSVの場合はUTF-8 BOMを考慮して読み込む
-  if (file.name.endsWith('.encrypted.csv')) {
+  if (isEncryptedFile) {
     reader.readAsText(file);
   } else {
     reader.readAsText(file, 'UTF-8');
@@ -835,7 +847,7 @@ async function checkPassword() {
   const inputPassword = passwordInput.value;
   
   // パスワード設定を確認
-  chrome.storage.sync.get(['passwordHash', 'usePassword'], async (result) => {
+  chrome.storage.local.get(['passwordHash', 'usePassword'], async (result) => {
     const usePassword = result.usePassword !== false; // デフォルトはtrue（後方互換性のため）
     
     if (!usePassword) {
@@ -911,7 +923,7 @@ async function setupPassword() {
   
   // パスワード変更モードの場合、現在のパスワードをチェック
   if (isChangeMode) {
-    chrome.storage.sync.get(['passwordHash', 'usePassword'], async (result) => {
+    chrome.storage.local.get(['passwordHash', 'usePassword'], async (result) => {
       const usePassword = result.usePassword !== false;
       const storedHash = result.passwordHash;
       
@@ -954,7 +966,7 @@ async function saveNewPassword(newPassword, confirmPassword, allowEmpty = false)
     
     // パスワードをハッシュ化して保存
     const passwordHash = await hashPassword(newPassword);
-    chrome.storage.sync.set({ passwordHash: passwordHash, usePassword: true }, () => {
+    chrome.storage.local.set({ passwordHash: passwordHash, usePassword: true }, () => {
       console.log('パスワードを設定しました');
       sessionStorage.setItem('bookmarkListAuthenticated', 'true');
       showMainContent();
@@ -965,7 +977,7 @@ async function saveNewPassword(newPassword, confirmPassword, allowEmpty = false)
       return;
     }
     // パスワードが空の場合は「パスワードを利用しない」と同じ処理（初回設定時のみ）
-    chrome.storage.sync.set({ usePassword: false }, () => {
+    chrome.storage.local.set({ usePassword: false }, () => {
       console.log('パスワードを利用しない設定を保存しました');
       sessionStorage.setItem('bookmarkListAuthenticated', 'true');
       showMainContent();
@@ -975,7 +987,7 @@ async function saveNewPassword(newPassword, confirmPassword, allowEmpty = false)
 
 // パスワードをスキップ
 function skipPassword() {
-  chrome.storage.sync.set({ usePassword: false }, () => {
+  chrome.storage.local.set({ usePassword: false }, () => {
     console.log('パスワードを利用しない設定を保存しました');
     sessionStorage.setItem('bookmarkListAuthenticated', 'true');
     showMainContent();
@@ -1025,7 +1037,7 @@ if (forgotPasswordLink) {
       // 最終確認
       if (confirm('本当にすべてのデータを削除しますか？\n\nこの操作は取り消せません。')) {
         // すべてのデータを削除
-        chrome.storage.sync.clear(() => {
+        chrome.storage.local.clear(() => {
           console.log('すべてのデータをリセットしました');
           // セッションストレージもクリア
           sessionStorage.clear();
@@ -1047,7 +1059,7 @@ async function checkAuthentication() {
   
   if (isChangePasswordMode) {
     // パスワード変更モードの場合
-    chrome.storage.sync.get(['passwordHash', 'usePassword'], async (result) => {
+    chrome.storage.local.get(['passwordHash', 'usePassword'], async (result) => {
       const usePassword = result.usePassword !== false;
       const hasPassword = !!result.passwordHash;
       
@@ -1077,7 +1089,7 @@ async function checkAuthentication() {
     showMainContent();
   } else {
     // パスワード設定を確認
-    chrome.storage.sync.get(['passwordHash', 'usePassword'], async (result) => {
+    chrome.storage.local.get(['passwordHash', 'usePassword'], async (result) => {
       const usePassword = result.usePassword !== false; // デフォルトはtrue（後方互換性のため）
       const hasPassword = !!result.passwordHash;
       
@@ -1167,17 +1179,17 @@ if (confirmPasswordInput) {
   });
 }
 
-// ストレージ変更を監視（同期時に自動的に重複をチェック）
+// ストレージ変更を監視（ローカル保存時に自動的に重複をチェック）
 chrome.storage.onChanged.addListener((changes, areaName) => {
-  if (areaName === 'sync' && changes.bookmarks) {
+  if (areaName === 'local' && changes.bookmarks) {
     // ブックマークデータが変更された場合（同期など）、重複をチェック
     const newBookmarks = changes.bookmarks.newValue || [];
     const deduplicatedBookmarks = removeDuplicates(newBookmarks);
     
     // 重複が削除された場合、ストレージに保存
     if (deduplicatedBookmarks.length < newBookmarks.length) {
-      chrome.storage.sync.set({ bookmarks: deduplicatedBookmarks }, () => {
-        console.log('同期時に重複ブックマークを削除しました');
+      chrome.storage.local.set({ bookmarks: deduplicatedBookmarks }, () => {
+        console.log('ローカル保存時に重複ブックマークを削除しました');
         // データを再読み込み
         loadBookmarks();
       });
