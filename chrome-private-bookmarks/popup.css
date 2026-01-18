@@ -25,20 +25,6 @@ body {
   margin: 0;
 }
 
-.setup-password-link {
-  display: block;
-  font-size: 11px;
-  color: #4285f4;
-  text-decoration: none;
-  margin-top: 8px;
-  transition: color 0.2s;
-}
-
-.setup-password-link:hover {
-  color: #357ae8;
-  text-decoration: underline;
-}
-
 .link-button {
   display: inline-block;
   padding: 8px 16px;

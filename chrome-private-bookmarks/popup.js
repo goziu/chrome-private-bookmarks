@@ -48,29 +48,10 @@ window.addEventListener('load', () => {
   }, 100);
 });
 
-// パスワード設定リンクの表示をチェック
-function checkPasswordSetupLink() {
-  chrome.storage.sync.get(['passwordHash', 'usePassword'], (result) => {
-    const usePassword = result.usePassword !== false; // デフォルトはtrue（後方互換性のため）
-    const hasPassword = !!result.passwordHash;
-    const setupPasswordLink = document.getElementById('setupPasswordLink');
-    
-    if (!hasPassword && usePassword && setupPasswordLink) {
-      // パスワードが設定されていない場合、リンクを表示
-      setupPasswordLink.style.display = 'block';
-    } else if (setupPasswordLink) {
-      setupPasswordLink.style.display = 'none';
-    }
-  });
-}
-
 // ブックマークを追加する関数
 function addBookmark() {
   if (bookmarkAdded) return;
   bookmarkAdded = true;
-  
-  // パスワード設定リンクの表示をチェック
-  checkPasswordSetupLink();
   
   // 現在のタブの情報を取得してブックマークに追加
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
