@@ -104,85 +104,9 @@ function loadBookmarks() {
     currentPage = 1;
     renderBookmarks();
     renderPagination();
-    updateStorageUsage();
-    // 容量チェックと自動削除
-    checkAndCleanupStorage();
   });
 }
 
-// ストレージ使用量を計算して表示
-function updateStorageUsage() {
-  const dataString = JSON.stringify(allBookmarks);
-  const sizeInBytes = new Blob([dataString]).size;
-  const sizeInKB = (sizeInBytes / 1024).toFixed(2);
-  const maxSizeKB = 100;
-  const usagePercent = ((sizeInKB / maxSizeKB) * 100).toFixed(1);
-  
-  const storageInfo = document.getElementById('storageInfo');
-  if (storageInfo) {
-    storageInfo.textContent = `使用容量: ${sizeInKB}KB / ${maxSizeKB}KB (${usagePercent}%)`;
-    
-    // 容量が80%を超えたら警告色に
-    if (sizeInKB > maxSizeKB * 0.8) {
-      storageInfo.className = 'storage-info warning';
-    } else {
-      storageInfo.className = 'storage-info';
-    }
-  }
-}
-
-// 容量が100KBを超えた場合、保護されていない古いブックマークから削除
-function checkAndCleanupStorage() {
-  const dataString = JSON.stringify(allBookmarks);
-  const sizeInBytes = new Blob([dataString]).size;
-  const sizeInKB = sizeInBytes / 1024;
-  const maxSizeKB = 100;
-
-  if (sizeInKB > maxSizeKB) {
-    // 保護されていないブックマークを古い順にソート
-    const unprotectedBookmarks = allBookmarks
-      .filter(b => !(b.protected || false))
-      .sort((a, b) => new Date(a.date) - new Date(b.date)); // 古い順
-
-    let removedCount = 0;
-    let currentBookmarks = [...allBookmarks];
-
-    // 保護されていない古いブックマークから削除
-    for (const bookmark of unprotectedBookmarks) {
-      // 現在のサイズを計算
-      const currentSize = new Blob([JSON.stringify(currentBookmarks)]).size / 1024;
-      if (currentSize <= maxSizeKB) break;
-
-      // このブックマークを削除
-      const index = currentBookmarks.findIndex(b => b.url === bookmark.url);
-      if (index !== -1) {
-        currentBookmarks.splice(index, 1);
-        removedCount++;
-      }
-    }
-
-    if (removedCount > 0) {
-      // ストレージに保存
-      chrome.storage.local.set({ bookmarks: currentBookmarks }, () => {
-        allBookmarks = currentBookmarks;
-        // 保護されたブックマークを先に表示するように再ソート
-        allBookmarks.sort((a, b) => {
-          const aProtected = a.protected || false;
-          const bProtected = b.protected || false;
-          if (aProtected && !bProtected) return -1;
-          if (!aProtected && bProtected) return 1;
-          return new Date(b.date) - new Date(a.date);
-        });
-        filteredBookmarks = [...allBookmarks];
-        currentPage = 1;
-        renderBookmarks();
-        renderPagination();
-        updateStorageUsage();
-        alert(`${removedCount}件の保護されていない古いブックマークを自動削除しました（容量制限のため）`);
-      });
-    }
-  }
-}
 
 // 検索機能
 searchInput.addEventListener('input', (e) => {
@@ -558,8 +482,6 @@ function toggleProtect(url) {
     currentPage = 1;
     renderBookmarks();
     renderPagination();
-    updateStorageUsage();
-    checkAndCleanupStorage();
   });
 }
 
@@ -586,8 +508,6 @@ function deleteBookmark(url) {
       
       renderBookmarks();
       renderPagination();
-      updateStorageUsage();
-      checkAndCleanupStorage();
     });
   }
 }
@@ -607,7 +527,6 @@ clearBtn.addEventListener('click', () => {
       searchInput.value = '';
       renderBookmarks();
       renderPagination();
-      updateStorageUsage();
       alert('すべてのブックマークを削除しました');
     });
   }
@@ -793,8 +712,6 @@ importFileInput.addEventListener('change', async (e) => {
         searchInput.value = '';
         renderBookmarks();
         renderPagination();
-        updateStorageUsage();
-        checkAndCleanupStorage();
 
         // メッセージを表示
         let message = `${newBookmarks.length}件のブックマークをインポートしました`;
