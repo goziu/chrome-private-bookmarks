@@ -29,6 +29,21 @@ const importBtn = document.getElementById('importBtn');
 const importFileInput = document.getElementById('importFileInput');
 const importMessage = document.getElementById('importMessage');
 
+// ページネーションのクリックを委譲で処理（CSPでインラインonclickが使えないため）
+pagination.addEventListener('click', (e) => {
+  const button = e.target.closest('button.page-btn');
+  if (!button || !pagination.contains(button)) {
+    return;
+  }
+
+  const page = Number(button.dataset.page);
+  if (!Number.isFinite(page)) {
+    return;
+  }
+
+  goToPage(page);
+});
+
 // 重複を削除する関数（同じURLのデータが複数ある場合、最新のものを残す）
 function removeDuplicates(bookmarks) {
   const urlMap = new Map();
@@ -201,7 +216,7 @@ function renderPagination() {
   
   // 前へボタン
   if (currentPage > 1) {
-    paginationHTML += `<button class="page-btn" onclick="goToPage(${currentPage - 1})">前へ</button>`;
+    paginationHTML += `<button class="page-btn" data-page="${currentPage - 1}">前へ</button>`;
   }
   
   // ページ番号
@@ -214,7 +229,7 @@ function renderPagination() {
   }
   
   if (startPage > 1) {
-    paginationHTML += `<button class="page-btn" onclick="goToPage(1)">1</button>`;
+    paginationHTML += `<button class="page-btn" data-page="1">1</button>`;
     if (startPage > 2) {
       paginationHTML += `<span class="page-ellipsis">...</span>`;
     }
@@ -222,9 +237,9 @@ function renderPagination() {
   
   for (let i = startPage; i <= endPage; i++) {
     if (i === currentPage) {
-      paginationHTML += `<button class="page-btn active">${i}</button>`;
+      paginationHTML += `<button class="page-btn active" data-page="${i}" disabled>${i}</button>`;
     } else {
-      paginationHTML += `<button class="page-btn" onclick="goToPage(${i})">${i}</button>`;
+      paginationHTML += `<button class="page-btn" data-page="${i}">${i}</button>`;
     }
   }
   
@@ -232,12 +247,12 @@ function renderPagination() {
     if (endPage < totalPages - 1) {
       paginationHTML += `<span class="page-ellipsis">...</span>`;
     }
-    paginationHTML += `<button class="page-btn" onclick="goToPage(${totalPages})">${totalPages}</button>`;
+    paginationHTML += `<button class="page-btn" data-page="${totalPages}">${totalPages}</button>`;
   }
   
   // 次へボタン
   if (currentPage < totalPages) {
-    paginationHTML += `<button class="page-btn" onclick="goToPage(${currentPage + 1})">次へ</button>`;
+    paginationHTML += `<button class="page-btn" data-page="${currentPage + 1}">次へ</button>`;
   }
   
   paginationHTML += '</div>';
