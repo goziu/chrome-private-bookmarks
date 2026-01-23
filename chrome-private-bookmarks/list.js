@@ -28,6 +28,94 @@ const clearBtn = document.getElementById('clearBtn');
 const importBtn = document.getElementById('importBtn');
 const importFileInput = document.getElementById('importFileInput');
 const importMessage = document.getElementById('importMessage');
+const filterGoldBtn = document.getElementById('filterGoldBtn');
+const filterSilverBtn = document.getElementById('filterSilverBtn');
+
+let filterGoldActive = false;
+let filterSilverActive = false;
+
+const IMPORTANCE = {
+  GOLD: 'gold',
+  SILVER: 'silver',
+  NONE: 'none'
+};
+
+function getImportance(bookmark) {
+  if (bookmark.importance === IMPORTANCE.GOLD || bookmark.importance === IMPORTANCE.SILVER) {
+    return bookmark.importance;
+  }
+  if (bookmark.protected) {
+    return IMPORTANCE.GOLD;
+  }
+  return IMPORTANCE.NONE;
+}
+
+function setImportance(bookmark, importance) {
+  bookmark.importance = importance;
+  bookmark.protected = importance === IMPORTANCE.GOLD;
+}
+
+function importanceRank(importance) {
+  if (importance === IMPORTANCE.GOLD) return 2;
+  if (importance === IMPORTANCE.SILVER) return 1;
+  return 0;
+}
+
+function sortBookmarks(bookmarks) {
+  bookmarks.sort((a, b) => {
+    const aImportance = getImportance(a);
+    const bImportance = getImportance(b);
+    const aGold = aImportance === IMPORTANCE.GOLD;
+    const bGold = bImportance === IMPORTANCE.GOLD;
+
+    if (aGold && !bGold) return -1;
+    if (!aGold && bGold) return 1;
+    return new Date(b.date) - new Date(a.date);
+  });
+}
+
+function updateFilterButtons() {
+  filterGoldBtn.classList.toggle('active', filterGoldActive);
+  filterSilverBtn.classList.toggle('active', filterSilverActive);
+}
+
+function applyFilters({ resetPage = false } = {}) {
+  const query = searchInput.value.toLowerCase().trim();
+  const useImportanceFilter = filterGoldActive || filterSilverActive;
+
+  filteredBookmarks = allBookmarks.filter(bookmark => {
+    if (query) {
+      const title = (bookmark.title || '').toLowerCase();
+      const url = (bookmark.url || '').toLowerCase();
+      if (!title.includes(query) && !url.includes(query)) {
+        return false;
+      }
+    }
+
+    if (useImportanceFilter) {
+      const importance = getImportance(bookmark);
+      const isGold = importance === IMPORTANCE.GOLD;
+      const isSilver = importance === IMPORTANCE.SILVER;
+      return (filterGoldActive && isGold) || (filterSilverActive && isSilver);
+    }
+
+    return true;
+  });
+
+  sortBookmarks(filteredBookmarks);
+
+  if (resetPage) {
+    currentPage = 1;
+  }
+
+  const totalPages = Math.ceil(filteredBookmarks.length / ITEMS_PER_PAGE);
+  if (currentPage > totalPages && totalPages > 0) {
+    currentPage = totalPages;
+  }
+
+  renderBookmarks();
+  renderPagination();
+}
 
 // ページネーションのクリックを委譲で処理（CSPでインラインonclickが使えないため）
 pagination.addEventListener('click', (e) => {
@@ -67,14 +155,12 @@ function removeDuplicates(bookmarks) {
       if (newDate > existingDate) {
         urlMap.set(url, bookmark);
       }
-      // 保護状態を考慮（どちらかが保護されている場合は保護されている方を優先）
+      // 保護状態を考慮（重要度が高い方を優先）
       else if (newDate.getTime() === existingDate.getTime()) {
-        if (bookmark.protected && !existing.protected) {
+        const existingImportance = getImportance(existing);
+        const newImportance = getImportance(bookmark);
+        if (importanceRank(newImportance) > importanceRank(existingImportance)) {
           urlMap.set(url, bookmark);
-        } else if (!bookmark.protected && existing.protected) {
-          // 既存の保護されたものを残す
-        } else {
-          // 両方保護されている、または両方保護されていない場合は既存のものを残す
         }
       }
     }
@@ -106,48 +192,28 @@ function loadBookmarks() {
     }
     
     allBookmarks = bookmarks;
-    // 保護されたブックマークを先に、その後登録順にソート
-    allBookmarks.sort((a, b) => {
-      const aProtected = a.protected || false;
-      const bProtected = b.protected || false;
-      if (aProtected && !bProtected) return -1;
-      if (!aProtected && bProtected) return 1;
-      // 両方保護されている、または両方保護されていない場合は登録順（日付の降順）
-      return new Date(b.date) - new Date(a.date);
-    });
-    filteredBookmarks = [...allBookmarks];
-    currentPage = 1;
-    renderBookmarks();
-    renderPagination();
+    sortBookmarks(allBookmarks);
+    applyFilters({ resetPage: true });
   });
 }
 
 
 // 検索機能
 searchInput.addEventListener('input', (e) => {
-  const query = e.target.value.toLowerCase().trim();
-  
-  if (query === '') {
-    filteredBookmarks = [...allBookmarks];
-  } else {
-    filteredBookmarks = allBookmarks.filter(bookmark => {
-      const title = (bookmark.title || '').toLowerCase();
-      const url = (bookmark.url || '').toLowerCase();
-      return title.includes(query) || url.includes(query);
-    });
-    // 検索結果も保護されたものを先に表示
-    filteredBookmarks.sort((a, b) => {
-      const aProtected = a.protected || false;
-      const bProtected = b.protected || false;
-      if (aProtected && !bProtected) return -1;
-      if (!aProtected && bProtected) return 1;
-      return new Date(b.date) - new Date(a.date);
-    });
-  }
-  
-  currentPage = 1;
-  renderBookmarks();
-  renderPagination();
+  applyFilters({ resetPage: true });
+});
+
+// 重要度フィルタ
+filterGoldBtn.addEventListener('click', () => {
+  filterGoldActive = !filterGoldActive;
+  updateFilterButtons();
+  applyFilters({ resetPage: true });
+});
+
+filterSilverBtn.addEventListener('click', () => {
+  filterSilverActive = !filterSilverActive;
+  updateFilterButtons();
+  applyFilters({ resetPage: true });
 });
 
 // ブックマークリストを表示
@@ -166,11 +232,15 @@ function renderBookmarks() {
     const dateStr = date.toLocaleString('ja-JP');
     // URLをbase64エンコードして安全に使用
     const encodedUrl = btoa(unescape(encodeURIComponent(bookmark.url)));
-    const isProtected = bookmark.protected || false;
-    const starIcon = isProtected ? '★' : '☆';
+    const importance = getImportance(bookmark);
+    const starIcon = importance === IMPORTANCE.NONE ? '☆' : '★';
+    const importanceClass = `importance-${importance}`;
+    const importanceTitle = importance === IMPORTANCE.GOLD
+      ? '最重要'
+      : (importance === IMPORTANCE.SILVER ? '重要' : '解除');
     return `
       <div class="bookmark-item">
-        <button class="btn-protect ${isProtected ? 'protected' : ''}" data-url="${encodedUrl}" title="${isProtected ? '保護解除' : '保護'}">${starIcon}</button>
+        <button class="btn-protect ${importanceClass}" data-url="${encodedUrl}" title="${importanceTitle}">${starIcon}</button>
         <a href="${bookmark.url}" target="_blank" class="bookmark-link">
           ${escapeHtml(bookmark.title || bookmark.url)}
         </a>
@@ -198,7 +268,7 @@ function renderBookmarks() {
       e.stopPropagation();
       const encodedUrl = btn.getAttribute('data-url');
       const url = decodeURIComponent(escape(atob(encodedUrl)));
-      toggleProtect(url);
+      toggleImportance(url);
     });
   });
 }
@@ -410,8 +480,9 @@ downloadBtn.addEventListener('click', async () => {
         const title = escapeCsv(bookmark.title || '');
         const url = escapeCsv(bookmark.url || '');
         const date = new Date(bookmark.date).toLocaleString('ja-JP');
-        const protected = (bookmark.protected || false) ? '1' : '0';
-        csv += `${title},${url},${date},${protected}\n`;
+        const importance = getImportance(bookmark);
+        const importanceValue = importance === IMPORTANCE.SILVER ? '2' : (importance === IMPORTANCE.GOLD ? '1' : '0');
+        csv += `${title},${url},${date},${importanceValue}\n`;
       });
       
       try {
@@ -439,8 +510,9 @@ downloadBtn.addEventListener('click', async () => {
         const title = escapeCsv(bookmark.title || '');
         const url = escapeCsv(bookmark.url || '');
         const date = new Date(bookmark.date).toLocaleString('ja-JP');
-        const protected = (bookmark.protected || false) ? '1' : '0';
-        csv += `${title},${url},${date},${protected}\n`;
+        const importance = getImportance(bookmark);
+        const importanceValue = importance === IMPORTANCE.SILVER ? '2' : (importance === IMPORTANCE.GOLD ? '1' : '0');
+        csv += `${title},${url},${date},${importanceValue}\n`;
       });
 
       // Blobを作成してダウンロード
@@ -455,48 +527,26 @@ downloadBtn.addEventListener('click', async () => {
   });
 });
 
-// 保護機能のトグル
-function toggleProtect(url) {
+// 重要度のトグル（最重要→重要→解除→最重要）
+function toggleImportance(url) {
   const bookmark = allBookmarks.find(b => b.url === url);
   if (!bookmark) return;
 
-  // 保護状態を切り替え
-  bookmark.protected = !(bookmark.protected || false);
+  const currentImportance = getImportance(bookmark);
+  let nextImportance = IMPORTANCE.GOLD;
 
-  // 保護されたブックマークを先に表示するように再ソート
-  allBookmarks.sort((a, b) => {
-    const aProtected = a.protected || false;
-    const bProtected = b.protected || false;
-    if (aProtected && !bProtected) return -1;
-    if (!aProtected && bProtected) return 1;
-    return new Date(b.date) - new Date(a.date);
-  });
-
-  // 検索結果も再ソート
-  if (searchInput.value.trim() === '') {
-    filteredBookmarks = [...allBookmarks];
-  } else {
-    filteredBookmarks = allBookmarks.filter(bookmark => {
-      const title = (bookmark.title || '').toLowerCase();
-      const url = (bookmark.url || '').toLowerCase();
-      const query = searchInput.value.toLowerCase().trim();
-      return title.includes(query) || url.includes(query);
-    });
-    // 検索結果も保護されたものを先に表示
-    filteredBookmarks.sort((a, b) => {
-      const aProtected = a.protected || false;
-      const bProtected = b.protected || false;
-      if (aProtected && !bProtected) return -1;
-      if (!aProtected && bProtected) return 1;
-      return new Date(b.date) - new Date(a.date);
-    });
+  if (currentImportance === IMPORTANCE.GOLD) {
+    nextImportance = IMPORTANCE.SILVER;
+  } else if (currentImportance === IMPORTANCE.SILVER) {
+    nextImportance = IMPORTANCE.NONE;
   }
+
+  setImportance(bookmark, nextImportance);
+  sortBookmarks(allBookmarks);
 
   // ストレージに保存
   chrome.storage.local.set({ bookmarks: allBookmarks }, () => {
-    currentPage = 1;
-    renderBookmarks();
-    renderPagination();
+    applyFilters({ resetPage: true });
   });
 }
 
@@ -511,18 +561,10 @@ function deleteBookmark(url) {
   if (confirm(confirmMessage)) {
     // すべてのブックマークから該当するURLを削除
     allBookmarks = allBookmarks.filter(b => b.url !== url);
-    filteredBookmarks = filteredBookmarks.filter(b => b.url !== url);
     
     // ストレージに保存
     chrome.storage.local.set({ bookmarks: allBookmarks }, () => {
-      // 現在のページにアイテムがなくなった場合、前のページに移動
-      const totalPages = Math.ceil(filteredBookmarks.length / ITEMS_PER_PAGE);
-      if (currentPage > totalPages && totalPages > 0) {
-        currentPage = totalPages;
-      }
-      
-      renderBookmarks();
-      renderPagination();
+      applyFilters();
     });
   }
 }
@@ -534,15 +576,20 @@ clearBtn.addEventListener('click', () => {
     return;
   }
 
-  if (confirm('すべてのブックマークを削除しますか？この操作は取り消せません。')) {
-    chrome.storage.local.set({ bookmarks: [] }, () => {
-      allBookmarks = [];
-      filteredBookmarks = [];
-      currentPage = 1;
+  const goldBookmarks = allBookmarks.filter(bookmark => getImportance(bookmark) === IMPORTANCE.GOLD);
+  const deletableCount = allBookmarks.length - goldBookmarks.length;
+
+  if (deletableCount === 0) {
+    alert('最重要のブックマークのみのため削除対象がありません');
+    return;
+  }
+
+  if (confirm('最重要は残したまま、その他のブックマークを削除しますか？この操作は取り消せません。')) {
+    chrome.storage.local.set({ bookmarks: goldBookmarks }, () => {
+      allBookmarks = goldBookmarks;
       searchInput.value = '';
-      renderBookmarks();
-      renderPagination();
-      alert('すべてのブックマークを削除しました');
+      applyFilters({ resetPage: true });
+      alert('最重要以外のブックマークを削除しました');
     });
   }
 });
@@ -629,15 +676,21 @@ function parseCSV(csvText) {
           date = new Date();
         }
 
-        // 保護状態のパース（'1'または'true'で保護、それ以外は非保護）
-        const isProtected = protectedStr === '1' || protectedStr.toLowerCase() === 'true';
+        let importance = IMPORTANCE.NONE;
+        if (protectedStr === '2') {
+          importance = IMPORTANCE.SILVER;
+        } else if (protectedStr === '1' || protectedStr.toLowerCase() === 'true') {
+          importance = IMPORTANCE.GOLD;
+        }
 
-        bookmarks.push({
+        const bookmark = {
           title: title || url,
           url: url,
-          date: date.toISOString(),
-          protected: isProtected
-        });
+          date: date.toISOString()
+        };
+
+        setImportance(bookmark, importance);
+        bookmarks.push(bookmark);
       }
     }
   }
@@ -710,23 +763,13 @@ importFileInput.addEventListener('change', async (e) => {
       // 既存のブックマークと新しいブックマークをマージ
       const mergedBookmarks = [...allBookmarks, ...newBookmarks];
 
-      // 保護されたブックマークを先に表示するように再ソート
-      mergedBookmarks.sort((a, b) => {
-        const aProtected = a.protected || false;
-        const bProtected = b.protected || false;
-        if (aProtected && !bProtected) return -1;
-        if (!aProtected && bProtected) return 1;
-        return new Date(b.date) - new Date(a.date);
-      });
+      sortBookmarks(mergedBookmarks);
 
       // ストレージに保存
       chrome.storage.local.set({ bookmarks: mergedBookmarks }, () => {
         allBookmarks = mergedBookmarks;
-        filteredBookmarks = [...allBookmarks];
-        currentPage = 1;
         searchInput.value = '';
-        renderBookmarks();
-        renderPagination();
+        applyFilters({ resetPage: true });
 
         // メッセージを表示
         let message = `${newBookmarks.length}件のブックマークをインポートしました`;

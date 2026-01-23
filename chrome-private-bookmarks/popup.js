@@ -5,6 +5,18 @@
 let ctrlKeyPressed = false;
 let bookmarkAdded = false;
 
+const IMPORTANCE = {
+  GOLD: 'gold',
+  SILVER: 'silver'
+};
+
+function getImportance(bookmark) {
+  if (bookmark.importance === IMPORTANCE.GOLD || bookmark.importance === IMPORTANCE.SILVER) {
+    return bookmark.importance;
+  }
+  return bookmark.protected ? IMPORTANCE.GOLD : 'none';
+}
+
 // キーボードイベントを監視
 document.addEventListener('keydown', (e) => {
   if (e.ctrlKey || e.metaKey) {
@@ -98,10 +110,10 @@ function addBookmark() {
           
           // 保護されたブックマークを先に表示するように再ソート
           bookmarks.sort((a, b) => {
-            const aProtected = a.protected || false;
-            const bProtected = b.protected || false;
-            if (aProtected && !bProtected) return -1;
-            if (!aProtected && bProtected) return 1;
+            const aGold = getImportance(a) === IMPORTANCE.GOLD;
+            const bGold = getImportance(b) === IMPORTANCE.GOLD;
+            if (aGold && !bGold) return -1;
+            if (!aGold && bGold) return 1;
             return new Date(b.date) - new Date(a.date);
           });
           
