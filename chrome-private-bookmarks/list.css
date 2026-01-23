@@ -141,6 +141,45 @@ h1 {
   border-color: #4285f4;
 }
 
+.star-filters {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  align-items: center;
+}
+
+.star-filter {
+  border: 1px solid #ddd;
+  background-color: #f1f3f4;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.star-filter:hover {
+  border-color: #4285f4;
+}
+
+.star-filter.active {
+  background-color: #e8f0fe;
+  border-color: #4285f4;
+}
+
+.star-gold {
+  color: #fbbc04;
+}
+
+.star-silver {
+  color: #9aa0a6;
+}
+
 .button-group {
   display: flex;
   gap: 10px;
@@ -242,12 +281,20 @@ h1 {
   color: #4285f4;
 }
 
-.btn-protect.protected {
+.btn-protect.importance-gold {
   color: #fbbc04;
 }
 
-.btn-protect.protected:hover {
+.btn-protect.importance-gold:hover {
   color: #f9ab00;
+}
+
+.btn-protect.importance-silver {
+  color: #9aa0a6;
+}
+
+.btn-protect.importance-silver:hover {
+  color: #7a8085;
 }
 
 .btn-delete {
